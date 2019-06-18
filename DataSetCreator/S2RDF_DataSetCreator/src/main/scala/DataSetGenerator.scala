@@ -5,6 +5,8 @@
  
 package dataCreator
 import collection.mutable.HashMap
+import org.apache.hadoop.fs.{FileSystem, Path}
+
 /**
  * DataSetGenerator creates for an input RDF dataset its reprsentations as 
  * Triple Table, Vertical Partiitoning and Extended Vertical Partitioning in 
@@ -60,8 +62,8 @@ object DataSetGenerator {
     // ExtVP. Out of this reason we remove ExtVP directory containing old tables
     // and create it empty again
     if (datasetType == "VP"){
-      Helper.removeDirInHDFS(Settings.extVpDir)
-      Helper.createDirInHDFS(Settings.extVpDir)
+      removeDirInHDFS(Settings.extVpDir)
+      createDirInHDFS(Settings.extVpDir)
     }
     // create Extended Vertical Partitioning table set definded by datasetType
     if (datasetType == "SO") createExtVP("SO")
@@ -90,8 +92,8 @@ object DataSetGenerator {
     _inputSize = df.count()
     
     // remove old TripleTable and save it as Parquet
-    Helper.removeDirInHDFS(Settings.tripleTable)
-    df.saveAsParquetFile(Settings.tripleTable)
+    removeDirInHDFS(Settings.tripleTable)
+    df.write.parquet(Settings.tripleTable)
   }
   
   /**
@@ -112,8 +114,8 @@ object DataSetGenerator {
    */
   private def createVP() = {    
     // create directory for all vp tables
-    Helper.removeDirInHDFS(Settings.vpDir)
-    Helper.createDirInHDFS(Settings.vpDir)
+    removeDirInHDFS(Settings.vpDir)
+    createDirInHDFS(Settings.vpDir)
     StatisticWriter.initNewStatisticFile("VP")
 
     // create and cache vpTables for all predicates in input RDF dataset
@@ -121,12 +123,12 @@ object DataSetGenerator {
       var vpTable = _sqlContext.sql("select sub, obj "
                                   + "from triples where pred='"+predicate+"'")          
       
-      val cleanPredicate = Helper.getPartName(predicate)  
+      val cleanPredicate = "`"+Helper.getPartName(predicate) +"`"
       vpTable.registerTempTable(cleanPredicate)
       _sqlContext.cacheTable(cleanPredicate)
       _vpTableSizes(predicate) = vpTable.count()
       
-      vpTable.saveAsParquetFile(Settings.vpDir + cleanPredicate + ".parquet")
+      vpTable.write.parquet(Settings.vpDir + cleanPredicate + ".parquet")
             
       // print statistic line
       StatisticWriter.incSavedTables()
@@ -144,7 +146,7 @@ object DataSetGenerator {
    */
   private def loadVP() = {  
     for (predicate <- _uPredicates){      
-      val cleanPredicate = Helper.getPartName(predicate)    
+      val cleanPredicate = "`"+Helper.getPartName(predicate)+"`"    
       var vpTable = _sqlContext.parquetFile(Settings.vpDir 
                                             + cleanPredicate 
                                             + ".parquet")          
@@ -162,7 +164,7 @@ object DataSetGenerator {
   private def createExtVP(relType: String) = {
 
     // create directory for all ExtVp tables of given relType (SO/OS/SS)    
-    Helper.createDirInHDFS(Settings.extVpDir+relType)
+    createDirInHDFS(Settings.extVpDir+relType)
     StatisticWriter.initNewStatisticFile(relType)
     
     var savedTables = 0
@@ -198,16 +200,16 @@ object DataSetGenerator {
             // create directory extVP/relType/pred1 if not exists
             if (!createdDirs.contains(pred1)) {
               createdDirs = pred1 :: createdDirs
-              Helper.createDirInHDFS(Settings.extVpDir 
-                                     + relType + "/" 
-                                     + Helper.getPartName(pred1))
+              createDirInHDFS(Settings.extVpDir 
+                                     + relType + "/`" 
+                                     + Helper.getPartName(pred1)) +"`"
             }
             
             // save ExtVP table
-            extVpTable.saveAsParquetFile(Settings.extVpDir 
-                                         + relType + "/"
-                                         + Helper.getPartName(pred1) + "/"
-                                         + Helper.getPartName(pred2)
+            extVpTable.write.parquet(Settings.extVpDir 
+                                         + relType + "/`"
+                                         + Helper.getPartName(pred1) + "`/`"
+                                         + Helper.getPartName(pred2) + "`"
                                          + ".parquet")
             StatisticWriter.incSavedTables()
           } else {
@@ -246,7 +248,7 @@ object DataSetGenerator {
                 : Array[String] = {  
     var sqlRelPreds = ("select distinct pred "
                         + "from triples t1 "
-                        + "left semi join "+Helper.getPartName(pred) + " t2 "
+                        + "left semi join `"+Helper.getPartName(pred) + "` t2 "
                         + "on")
 
     if (relType == "SS"){
@@ -269,8 +271,8 @@ object DataSetGenerator {
                                  pred2: String, 
                                  relType: String): String = {
     var command = ("select t1.sub as sub, t1.obj as obj "
-                    + "from " + Helper.getPartName(pred1) + " t1 "
-                    + "left semi join " + Helper.getPartName(pred2) + " t2 "
+                    + "from `" + Helper.getPartName(pred1) + "` t1 "
+                    + "left semi join `" + Helper.getPartName(pred2) + "` t2 "
                     + "on ")
 
     if (relType == "SS"){
@@ -283,4 +285,19 @@ object DataSetGenerator {
     
     command
   }
+
+  private def removeDirInHDFS(path: String) = {
+    val fs = FileSystem.get(_sc.hadoopConfiguration)
+
+    val outPutPath = new Path(path)
+
+    if (fs.exists(outPutPath))
+        fs.delete(outPutPath, true)
+  }
+
+  private def createDirInHDFS(path: String) = {
+    val fs = FileSystem.get(_sc.hadoopConfiguration)    
+    fs.mkdirs(new Path(path));
+  }
+
 }
