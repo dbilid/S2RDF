@@ -4,6 +4,8 @@
  */
 
 package dataCreator
+import org.apache.hadoop.fs.{FileSystem, Path}
+import java.io.PrintWriter;
 /**
  * StatisticWriter records information about created tables using 
  * DataSetGenerator, it creates 4 statistic files for VP, ExtVP_SO, ExtVP_SS and 
@@ -21,6 +23,8 @@ object StatisticWriter {
   private var _savedTables = 0: Int
   private var _unsavedNonEmptyTables = 0: Int
   private var _allPossibleTables = 0: Int
+
+  private val _sc = Settings.sparkContext
   
   /**
    * Initializes StatisticWriter
@@ -40,29 +44,49 @@ object StatisticWriter {
     _allPossibleTables = if (relType == "VP") _predicatesNum 
                          else _predicatesNum * _predicatesNum
     
-    val fw = new java.io.FileWriter(_statisticFileName, false)
+    val fs = FileSystem.get(_sc.hadoopConfiguration)
+
+    val fw = new Path(Settings.workingDir+_statisticFileName)
+
+    
+
+    val output = fs.create(fw)
+    val writer = new PrintWriter(output)
     try {
-      fw.write("\t" +relType+ " Statistic\n")
-      fw.write("---------------------------------------------------------\n")
+        writer.write("\t" +relType+ " Statistic\n")
+        writer.write("---------------------------------------------------------\n")
     }
-    finally fw.close()     
+    finally {
+        writer.close()
+    }
+    
+
+
   }
 
   /**
    * Puts the tail at the and of the written statistic files
    */
   def closeStatisticFile() = {
-    val fw = new java.io.FileWriter(_statisticFileName, true)
+
+    val fw = new Path(Settings.workingDir+_statisticFileName)
+
+    val fs = FileSystem.get(_sc.hadoopConfiguration)
+
+    val output = fs.append(fw)
+    val writer = new PrintWriter(output)
     try {
-      fw.write("---------------------------------------------------------\n")
-      fw.write("Saved tabels ->" + _savedTables +"\n")
-      fw.write("Unsaved non-empty tables ->" + _unsavedNonEmptyTables +"\n")
-      fw.write("Empty tables ->" + (_allPossibleTables 
+        writer.write("---------------------------------------------------------\n")
+        writer.write("Saved tabels ->" + _savedTables +"\n")
+        writer.write("Unsaved non-empty tables ->" + _unsavedNonEmptyTables +"\n")
+        writer.write("Empty tables ->" + (_allPossibleTables 
                                     - _savedTables
                                     - _unsavedNonEmptyTables) 
                +"\n")
     }
-    finally fw.close() 
+    finally {
+        writer.close()
+    }
   }
   /**
    * Add new line to the actual statistic file
@@ -82,13 +106,21 @@ object StatisticWriter {
                    + "\t" + _inputSize
                    + "\t" + Helper.ratio(sizeVpT, _inputSize))
     }
-    
-    val fw = new java.io.FileWriter(_statisticFileName, true)
+
+     val fw = new Path(Settings.workingDir+_statisticFileName)
+
+    val fs = FileSystem.get(_sc.hadoopConfiguration)
+
+    val output = fs.append(fw)
+    val writer = new PrintWriter(output)
     try {
-      fw.write( statLine+"\n")
+        writer.write(statLine+"\n")
     }
-    finally fw.close() 
+    finally {
+        writer.close()
+    }
   }
+
   /**
    * Increments the counter for the saved tables
    */
