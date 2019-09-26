@@ -10,6 +10,8 @@ import scala.sys.process._
 import java.util.Calendar
 import collection.mutable.HashMap
 import collection.mutable.ListBuffer
+import org.apache.hadoop.fs.{FileSystem, Path}
+import java.io.PrintWriter;
 
 object QueryExecutor {
   private var _cachedTables = HashMap[String, String]();
@@ -25,10 +27,18 @@ object QueryExecutor {
    */
   def parseQueryFile() = {
     var resQueries = ListBuffer[Query]();
-    val queries = scala.io.Source.fromFile(Settings.queryFile)
-                                 .mkString
-                                 .replaceAll("\\$\\$", "__")
-                                 .split(">>>>>>");   
+
+    val fw = new Path(Settings.queryFile)
+    val fs = FileSystem.get(_sc.hadoopConfiguration)
+    val stream = fs.open(fw)
+    def readLines = scala.io.Source.fromInputStream(stream)
+    val queries  = readLines.takeWhile(_ != null).mkString("\n") .replaceAll("\\$\\$", "__")
+                                 .split(">>>>>>");
+    //def readLines = Stream.cons(stream.readLine, Stream.continually( stream.readLine))
+    //val queries = scala.io.Source.fromFile(Settings.queryFile)
+    //                             .mkString
+    //                            .replaceAll("\\$\\$", "__")
+    //                             .split(">>>>>>");   
     for (query <- queries if query.length > 0){
       var parts = query.split("\\+\\+\\+\\+\\+\\+");
       var sqlQuery = parts(0);
@@ -104,12 +114,19 @@ object QueryExecutor {
   /**
    *  Just adds given line to given file
    */
-  private def writeLineToFile(line:String, fileName:String)= {    
-    val fw = new java.io.FileWriter(fileName, true)
+  private def writeLineToFile(line:String, fileName:String)= {
+    val fw = new Path(fileName)
+
+    val fs = FileSystem.get(_sc.hadoopConfiguration)
+
+    val output = fs.append(fw)
+    val writer = new PrintWriter(output)
     try {
-      fw.write( line+"\n")
+        writer.write(line+"\n")
     }
-    finally fw.close() 
+    finally {
+        writer.close()
+    }    
   }
   
   /**
@@ -215,14 +232,27 @@ object QueryExecutor {
 
         // repartition the tables in query        
         if (actualPostfix.contains("SO") && Settings.partNumberExtVP != 200)
-          table = _sqlContext.parquetFile(fileName)
+          table = _sqlContext.read.parquet(fileName)
                   .repartition(Settings.partNumberExtVP);
         else if (Settings.partNumberVP != 200)
-          table = _sqlContext.parquetFile(fileName)
+          table = _sqlContext.read.parquet(fileName)
                   .repartition(Settings.partNumberVP);
         else
-          table = _sqlContext.parquetFile(fileName)
-        table.registerTempTable(tableStat.tName);
+          table = _sqlContext.read.parquet(fileName)
+        
+        if(tableStat.tName.contains("asWKT")) {
+            table.registerTempTable("tempwkt");
+            var table2:org.apache.spark.sql.DataFrame = null;
+            var spatialDf = _sqlContext.sql(
+              """
+                |SELECT subj, ST_GeomFromWKT(obj) AS obj
+                |FROM tempwkt
+              """.stripMargin)
+            spatialDf.createOrReplaceTempView(tableStat.tName);
+        }
+        else {
+            table.registerTempTable(tableStat.tName);
+        }
         _sqlContext.cacheTable(tableStat.tName)
 
         var start = System.currentTimeMillis;            

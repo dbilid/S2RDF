@@ -107,7 +107,7 @@ object StatisticWriter {
                    + "\t" + Helper.ratio(sizeVpT, _inputSize))
     }
 
-     val fw = new Path(Settings.workingDir+_statisticFileName)
+    val fw = new Path(Settings.workingDir+_statisticFileName)
 
     val fs = FileSystem.get(_sc.hadoopConfiguration)
 

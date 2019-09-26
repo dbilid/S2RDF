@@ -8,6 +8,8 @@ package queryExecutor
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.serializer.KryoSerializer
+import org.datasyslab.geospark.serde.GeoSparkKryoRegistrator
 
 /**
  * Different settings for the Query Executor
@@ -55,12 +57,15 @@ object Settings {
                               //.set("spark.sql.inMemoryColumnarStorage.batchSize", "10000")
                               .set("spark.sql.inMemoryColumnarStorage.batchSize", "20000")
                               .set("spark.sql.shuffle.partitions", "50")
+                              .set("spark.serializer", classOf[KryoSerializer].getName)
+                              .set("spark.kryo.registrator", classOf[GeoSparkKryoRegistrator].getName)
                               //.set("spark.driver.allowMultipleContexts", "true")
                               
     new SparkContext(conf);
   }
   
   def loadSqlContext(): SQLContext = {
+    //GeoSparkSQLRegistrator.registerAll(sparkContext)
     val context = new org.apache.spark.sql.SQLContext(sparkContext)
     import context.implicits._ 
     context;    
