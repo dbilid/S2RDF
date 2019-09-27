@@ -195,6 +195,7 @@ public class Main {
 			Tags.SO_TABLE_STAT= Tags.SPARK_STATISTIC_DIRECTORY + "/stat_so.txt";
 			Tags.OS_TABLE_STAT= Tags.SPARK_STATISTIC_DIRECTORY + "/stat_os.txt";
 			Tags.SS_TABLE_STAT= Tags.SPARK_STATISTIC_DIRECTORY + "/stat_ss.txt";
+			Tags.PREDICATE_MAP= Tags.SPARK_STATISTIC_DIRECTORY + "/predicate_dictionary.txt";
 		}
 		if (cmd.hasOption("scaleUB")) {
 			Tags.ScaleUB = Float.valueOf(cmd.getOptionValue("scaleUB"));

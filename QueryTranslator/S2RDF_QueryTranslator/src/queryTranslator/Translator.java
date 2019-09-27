@@ -113,13 +113,15 @@ public class Translator {
      * Translates the SPARQL query into a sql script for use with Sql.
      */
     public void translateQuery() {
+    	// Read ExtVP/VP table statistics 
+        SparkTableStatistics.init();
+    	
         //Parse input query
         Query query = QueryFactory.read("file:"+inputFile);
         //Get prefixes defined in the query
         PrefixMapping prefixes = query.getPrefixMapping();
         
-        // Read ExtVP/VP table statistics 
-        SparkTableStatistics.init();
+        
 
         //Generate translation logfile
         PrintWriter logWriter;

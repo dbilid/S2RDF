@@ -100,7 +100,8 @@ public class SqlOpTranslator extends SqlOpVisitorBase {
 					chars.push('"');
 				}
 			}
-			if (c.equals(':')) {
+			sb.append(c);
+			/*if (c.equals(':')) {
 				if (chars.isEmpty()) {
 					sb.append('_');
 				} else {
@@ -108,7 +109,7 @@ public class SqlOpTranslator extends SqlOpVisitorBase {
 				}
 			} else {
 				sb.append(c);
-			}
+			}*/
 
 		}
 		return sb.toString();

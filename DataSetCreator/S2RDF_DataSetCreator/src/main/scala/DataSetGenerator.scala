@@ -6,6 +6,9 @@
 package dataCreator
 import collection.mutable.HashMap
 import org.apache.hadoop.fs.{FileSystem, Path}
+import java.io.ObjectOutputStream
+import java.io.ObjectInputStream
+import java.io.PrintWriter;
 
 /**
  * DataSetGenerator creates for an input RDF dataset its reprsentations as 
@@ -30,6 +33,9 @@ object DataSetGenerator {
   private var _vpTableSizes = new HashMap[String, Long]()
   // set of unique predicates from input RDF dataset
   private var _uPredicates = null: Array[String]
+
+  private var predicates = new HashMap[String, Int]()
+  private var predCounter = 0
   
   /**
    * generate all datasets (TT, VP, ExtVP)
@@ -80,6 +86,7 @@ object DataSetGenerator {
    */
   private def createTT() = {      
     val df = _sc.textFile(Settings.inputRDFSet)
+                         .map(_.replaceAll("<", "").replaceAll(">", ""))
                          .map(_.split("\t"))
                          .map(p => Triple(p(0), p(1), p(2)))
                          .toDF()
@@ -123,7 +130,9 @@ object DataSetGenerator {
       var vpTable = _sqlContext.sql("select sub, obj "
                                   + "from triples where pred='"+predicate+"'")          
       
-      val cleanPredicate = "`"+Helper.getPartName(predicate) +"`"
+      predicates += (predicate -> predCounter)
+      val cleanPredicate = "prop" + predCounter
+      predCounter+=1;
       vpTable.registerTempTable(cleanPredicate)
       _sqlContext.cacheTable(cleanPredicate)
       _vpTableSizes(predicate) = vpTable.count()
@@ -138,6 +147,29 @@ object DataSetGenerator {
     }
     
     StatisticWriter.closeStatisticFile()
+
+    val fs = FileSystem.get(_sc.hadoopConfiguration)
+
+    val fw = new Path(Settings.workingDir+"predicate_dictionary.txt")
+
+    
+
+    val output = fs.create(fw)
+    val writer = new PrintWriter(output)
+    try {
+        predicates.foreach  
+        {   
+            case (key, value) => writer.write (key + " -> " + value + "\n");   
+        }
+    }
+    finally {
+        writer.close()
+    }
+    //val ostream = new ObjectOutputStream(output)
+    //ostream.writeObject(predicates)
+    //ostream.close
+    
+    
   }
   
   /**
@@ -145,8 +177,30 @@ object DataSetGenerator {
    * VP tables are used for generation of ExtVP tables
    */
   private def loadVP() = {  
+    val fs = FileSystem.get(_sc.hadoopConfiguration)
+
+    val fw = new Path(Settings.workingDir+"predicate_dictionary.txt")
+    val input = fs.open(fw)
+
+
+    def readLines = Stream.cons(input.readLine, Stream.continually( input.readLine))
+
+
+    readLines.takeWhile(_ != null).foreach(line =>  predicates+=line.split(" -> ")(0) -> line.split(" -> ")(1).toInt  )
+
+    /*def readLines = scala.io.Source.fromInputStream(input)
+    val lines = readLines.takeWhile(_ != null)
+    for(line <- lines){
+        val predicatePair = line.split(" -> ")
+        predicates+=predicatePair(0) -> predicatePair(1);
+    }*/
+    //val istream = new ObjectInputStream(input)
+    //predicates = (istream.readObject).asInstanceOf[HashMap[String, Int]]
+    //istream.close
+
     for (predicate <- _uPredicates){      
-      val cleanPredicate = "`"+Helper.getPartName(predicate)+"`"    
+      val cleanPredicate = "prop" + predicates(predicate)
+      predCounter+=1;
       var vpTable = _sqlContext.parquetFile(Settings.vpDir 
                                             + cleanPredicate 
                                             + ".parquet")          
@@ -201,15 +255,15 @@ object DataSetGenerator {
             if (!createdDirs.contains(pred1)) {
               createdDirs = pred1 :: createdDirs
               createDirInHDFS(Settings.extVpDir 
-                                     + relType + "/`" 
-                                     + Helper.getPartName(pred1)) +"`"
+                                     + relType  
+                                     + "/prop" + predicates(pred1))
             }
             
             // save ExtVP table
             extVpTable.write.parquet(Settings.extVpDir 
-                                         + relType + "/`"
-                                         + Helper.getPartName(pred1) + "`/`"
-                                         + Helper.getPartName(pred2) + "`"
+                                         + relType + "/"
+                                         + "prop" + predicates(pred1) + "/"
+                                         + "prop" + predicates(pred2) 
                                          + ".parquet")
             StatisticWriter.incSavedTables()
           } else {
@@ -248,7 +302,7 @@ object DataSetGenerator {
                 : Array[String] = {  
     var sqlRelPreds = ("select distinct pred "
                         + "from triples t1 "
-                        + "left semi join `"+Helper.getPartName(pred) + "` t2 "
+                        + "left semi join "+"prop" + predicates(pred) + " t2 "
                         + "on")
 
     if (relType == "SS"){
@@ -271,8 +325,8 @@ object DataSetGenerator {
                                  pred2: String, 
                                  relType: String): String = {
     var command = ("select t1.sub as sub, t1.obj as obj "
-                    + "from `" + Helper.getPartName(pred1) + "` t1 "
-                    + "left semi join `" + Helper.getPartName(pred2) + "` t2 "
+                    + "from " + "prop" + predicates(pred1) + " t1 "
+                    + "left semi join " + "prop" + predicates(pred2) + " t2 "
                     + "on ")
 
     if (relType == "SS"){

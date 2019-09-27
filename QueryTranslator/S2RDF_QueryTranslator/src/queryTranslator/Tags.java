@@ -36,6 +36,7 @@ public final class Tags {
 	public static String SO_TABLE_STAT= SPARK_STATISTIC_DIRECTORY + "/stat_so.txt";
 	public static String OS_TABLE_STAT= SPARK_STATISTIC_DIRECTORY + "/stat_os.txt";
 	public static String SS_TABLE_STAT= SPARK_STATISTIC_DIRECTORY + "/stat_ss.txt";
+	public static String PREDICATE_MAP= SPARK_STATISTIC_DIRECTORY + "/predicate_dictionary.txt";
 	
 	public static final String BGP = "tab";
 	public static final String PPBGP = "PPtab";

@@ -7,7 +7,7 @@ import queryExecutor.QueryExecutor
 import queryExecutor.Settings
 object runDriver { 
   def main(args:Array[String]) = {
-    Settings.loadUserSettings(args(0), args(1))
+    Settings.loadUserSettings("hdfs:///"+args(0), "hdfs:///"+args(1))
     QueryExecutor.parseQueryFile();
     QueryExecutor.runTests();
   }

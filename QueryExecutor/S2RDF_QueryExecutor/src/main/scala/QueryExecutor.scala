@@ -32,7 +32,7 @@ object QueryExecutor {
     val fs = FileSystem.get(_sc.hadoopConfiguration)
     val stream = fs.open(fw)
     def readLines = scala.io.Source.fromInputStream(stream)
-    val queries  = readLines.takeWhile(_ != null).mkString("\n") .replaceAll("\\$\\$", "__")
+    val queries  = readLines.takeWhile(_ != null).mkString.replaceAll("\\$\\$", "__")
                                  .split(">>>>>>");
     //def readLines = Stream.cons(stream.readLine, Stream.continually( stream.readLine))
     //val queries = scala.io.Source.fromFile(Settings.queryFile)
