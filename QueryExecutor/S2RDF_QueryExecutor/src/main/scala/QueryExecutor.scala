@@ -240,15 +240,19 @@ object QueryExecutor {
         else
           table = _sqlContext.read.parquet(fileName)
         
-        if(tableStat.tName.contains("asWKT")) {
+        if(tableStat.tName.contains("prop1")) {
+            //var table2:org.apache.spark.sql.DataFrame = null;
             table.registerTempTable("tempwkt");
-            var table2:org.apache.spark.sql.DataFrame = null;
+            
+            _sqlContext.sql("SELECT * FROM tempwkt").show(10, false);
             var spatialDf = _sqlContext.sql(
               """
-                |SELECT subj, ST_GeomFromWKT(obj) AS obj
+                |SELECT s, ST_GeomFromWKT(o) as o
                 |FROM tempwkt
               """.stripMargin)
-            spatialDf.createOrReplaceTempView(tableStat.tName);
+            //spatialDf.createOrReplaceTempView(tableStat.tName);
+            spatialDf.registerTempTable(tableStat.tName);
+            spatialDf.show
         }
         else {
             table.registerTempTable(tableStat.tName);

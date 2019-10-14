@@ -8,14 +8,32 @@ package dataCreator
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
+
 
 /**
  * Different settings for the DataSetGenerator
  * TODO: implement reading of settings from config file.
  */
 object Settings {
-  val sparkContext = loadSparkContext()
-  var sqlContext = loadSqlContext()
+  val spark = SparkSession.builder
+  .appName("DataSetsCreator") 
+  .config("spark.executor.memory", "20g")
+  .config("spark.sql.parquet.filterPushdown", "true")
+  .config("spark.sql.inMemoryColumnarStorage.compressed", "true")
+  .config("spark.executor.memory", "20g")
+  .config("spark.executor.memory", "20g")
+  .config("spark.sql.inMemoryColumnarStorage.batchSize", "20000")
+  .config("spark.storage.blockManagerSlaveTimeoutMs", "3000000")                              
+  //.set("spark.sql.shuffle.partitions", "200")
+  .config("spark.storage.memoryFraction", "0.5")
+  //.set("spark.sql.autoBroadcastJoinThreshold", "-1")
+  .enableHiveSupport()
+  .getOrCreate
+
+
+  //val sparkContext = loadSparkContext()
+  //var sqlContext = loadSqlContext()
   
   // ScaleUB (Scale Upper Bound) controls the storage overhead.
   // Set it to 1 (default) to store all possible ExtVP tables. Reduce this value
@@ -54,8 +72,9 @@ object Settings {
    * Create SparkContext.
    * The overview over settings: 
    * http://spark.apache.org/docs/latest/programming-guide.html
-   */   
-  def loadSparkContext(): SparkContext = {
+   */  
+ 
+  /*def loadSparkContext(): SparkContext = {
     
     val conf = new SparkConf().setAppName("DataSetsCreator")
                               .set("spark.executor.memory", "20g")
@@ -78,5 +97,6 @@ object Settings {
     import context.implicits._
     context    
   }
+*/
 }
 

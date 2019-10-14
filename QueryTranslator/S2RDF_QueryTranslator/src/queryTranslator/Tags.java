@@ -72,9 +72,9 @@ public final class Tags {
 	//public static final String QUERY_SUFFIX = "\nPROFILE; ";
 
 	public static final String OFFSETCHAR = "\t";
-	public static final String SUBJECT_COLUMN_NAME = "sub";
-	public static final String PREDICATE_COLUMN_NAME = "pred";
-	public static final String OBJECT_COLUMN_NAME = "obj";
+	public static final String SUBJECT_COLUMN_NAME = "s";
+	public static final String PREDICATE_COLUMN_NAME = "p";
+	public static final String OBJECT_COLUMN_NAME = "o";
 	public static final String PREDICATE_SOCCESSORS_COLUMN_NAME = "sPredToObj";
 
 	public static final int LIMIT_LARGE_NUMBER = 100000000;

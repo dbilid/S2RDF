@@ -23,8 +23,10 @@ object StatisticWriter {
   private var _savedTables = 0: Int
   private var _unsavedNonEmptyTables = 0: Int
   private var _allPossibleTables = 0: Int
+    
+  private val _spark = Settings.spark
 
-  private val _sc = Settings.sparkContext
+  //private val _sc = Settings.sparkContext
   
   /**
    * Initializes StatisticWriter
@@ -44,7 +46,7 @@ object StatisticWriter {
     _allPossibleTables = if (relType == "VP") _predicatesNum 
                          else _predicatesNum * _predicatesNum
     
-    val fs = FileSystem.get(_sc.hadoopConfiguration)
+    val fs = FileSystem.get(_spark.sparkContext.hadoopConfiguration)
 
     val fw = new Path(Settings.workingDir+_statisticFileName)
 
@@ -71,7 +73,7 @@ object StatisticWriter {
 
     val fw = new Path(Settings.workingDir+_statisticFileName)
 
-    val fs = FileSystem.get(_sc.hadoopConfiguration)
+    val fs = FileSystem.get(_spark.sparkContext.hadoopConfiguration)
 
     val output = fs.append(fw)
     val writer = new PrintWriter(output)
@@ -109,7 +111,7 @@ object StatisticWriter {
 
     val fw = new Path(Settings.workingDir+_statisticFileName)
 
-    val fs = FileSystem.get(_sc.hadoopConfiguration)
+    val fs = FileSystem.get(_spark.sparkContext.hadoopConfiguration)
 
     val output = fs.append(fw)
     val writer = new PrintWriter(output)

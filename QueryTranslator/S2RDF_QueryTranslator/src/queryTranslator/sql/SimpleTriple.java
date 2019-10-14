@@ -69,7 +69,7 @@ public class SimpleTriple implements SqlTriple{
 			this._tableName = FmtUtils.stringForNode(predicate, this._prefixMapping).replace("http://yago-knowledge.org/resource/", "");
 			String temp=_tableName.replaceFirst("<", "");
 			temp=temp.substring(0, temp.length()-1);
-			this._tableName="<prop"+SparkTableStatistics.predicates.get(temp)+">";
+			this._tableName="prop"+SparkTableStatistics.predicates.get(temp);
 			this.verticalPartitioning = true;
 		} else {
 			vars.put(Tags.PREDICATE_COLUMN_NAME, predicate.getName());

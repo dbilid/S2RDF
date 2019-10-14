@@ -9,6 +9,7 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import java.io.ObjectOutputStream
 import java.io.ObjectInputStream
 import java.io.PrintWriter;
+import org.apache.spark.sql._
 
 /**
  * DataSetGenerator creates for an input RDF dataset its reprsentations as 
@@ -23,9 +24,10 @@ import java.io.PrintWriter;
 object DataSetGenerator {
   
   // Spark initialization
-  private val _sc = Settings.sparkContext
-  private val _sqlContext = Settings.sqlContext
-  import _sqlContext.implicits._
+  //private val _sc = Settings.sparkContext
+  //private val _sqlContext = Settings.sqlContext
+  private val _spark = Settings.spark 
+  //import _sqlContext.implicits._
   
   // number of triples in input dataset
   private var _inputSize = 0: Long
@@ -36,7 +38,7 @@ object DataSetGenerator {
 
   private var predicates = new HashMap[String, Int]()
   private var predCounter = 0
-  
+  import _spark.implicits._
   /**
    * generate all datasets (TT, VP, ExtVP)
    * It becomes as an input a varible containing string ("VP","SO","OS","SS")
@@ -50,12 +52,12 @@ object DataSetGenerator {
    *  SO,OS,SS
    */
   def generateDataSet(datasetType: String) = {
-    
+
     // create or load TripleTable if already created
     if (datasetType == "VP") createTT() else loadTT()
     // extarct all unique predicates from TripleTable
     // necessary for VP/ExtVP generation
-    _uPredicates = _sqlContext.sql("select distinct pred from triples")
+    _uPredicates = _spark.sql("select distinct p from triples")
                               .map(t => t(0).toString())
                               .collect()
 
@@ -85,7 +87,10 @@ object DataSetGenerator {
    * The table has to be cached, since it is used for generation of VP and ExtVP
    */
   private def createTT() = {      
-    val df = _sc.textFile(Settings.inputRDFSet)
+    _spark.sql("USE prost")
+    _spark.catalog.cacheTable("triples")
+    _inputSize = _spark.sql("SELECT * FROM triples").count
+    /*val df = _spark.read.text(Settings.inputRDFSet)
                          .map(_.replaceAll("<", "").replaceAll(">", ""))
                          .map(_.split("\t"))
                          .map(p => Triple(p(0), p(1), p(2)))
@@ -95,12 +100,12 @@ object DataSetGenerator {
     // double ellements. It was not the case for WatDiv
     //                     .distinct  
     df.registerTempTable("triples")     
-    _sqlContext.cacheTable("triples")
+    _spark.catalog.cacheTable("triples")
     _inputSize = df.count()
     
     // remove old TripleTable and save it as Parquet
     removeDirInHDFS(Settings.tripleTable)
-    df.write.parquet(Settings.tripleTable)
+    df.write.parquet(Settings.tripleTable)*/
   }
   
   /**
@@ -108,10 +113,14 @@ object DataSetGenerator {
    * TT table is used for generation of ExtVP and VP tables
    */
   private def loadTT() = {  
-    val df = _sqlContext.parquetFile(Settings.tripleTable);
-    df.registerTempTable("triples")     
-    _sqlContext.cacheTable("triples")
-    _inputSize = df.count()
+    //val df = _spark.read.parquet(Settings.tripleTable);
+    //df.registerTempTable("triples")     
+    //_spark.catalog.cacheTable("triples")
+    //_inputSize = df.count()
+    _spark.sql("USE prost")
+    _spark.catalog.cacheTable("triples")
+    _inputSize = _spark.sql("SELECT * FROM triples").count
+    
   }
   
   /**
@@ -127,14 +136,14 @@ object DataSetGenerator {
 
     // create and cache vpTables for all predicates in input RDF dataset
     for (predicate <- _uPredicates){      
-      var vpTable = _sqlContext.sql("select sub, obj "
-                                  + "from triples where pred='"+predicate+"'")          
+      var vpTable = _spark.sql("select s, o "
+                                  + "from triples where p='"+predicate+"'")          
       
       predicates += (predicate -> predCounter)
       val cleanPredicate = "prop" + predCounter
       predCounter+=1;
       vpTable.registerTempTable(cleanPredicate)
-      _sqlContext.cacheTable(cleanPredicate)
+      _spark.catalog.cacheTable(cleanPredicate)
       _vpTableSizes(predicate) = vpTable.count()
       
       vpTable.write.parquet(Settings.vpDir + cleanPredicate + ".parquet")
@@ -148,7 +157,7 @@ object DataSetGenerator {
     
     StatisticWriter.closeStatisticFile()
 
-    val fs = FileSystem.get(_sc.hadoopConfiguration)
+    val fs = FileSystem.get(_spark.sparkContext.hadoopConfiguration)
 
     val fw = new Path(Settings.workingDir+"predicate_dictionary.txt")
 
@@ -177,7 +186,7 @@ object DataSetGenerator {
    * VP tables are used for generation of ExtVP tables
    */
   private def loadVP() = {  
-    val fs = FileSystem.get(_sc.hadoopConfiguration)
+    val fs = FileSystem.get(_spark.sparkContext.hadoopConfiguration)
 
     val fw = new Path(Settings.workingDir+"predicate_dictionary.txt")
     val input = fs.open(fw)
@@ -201,12 +210,12 @@ object DataSetGenerator {
     for (predicate <- _uPredicates){      
       val cleanPredicate = "prop" + predicates(predicate)
       predCounter+=1;
-      var vpTable = _sqlContext.parquetFile(Settings.vpDir 
+      var vpTable = _spark.read.parquet(Settings.vpDir 
                                             + cleanPredicate 
                                             + ".parquet")          
             
       vpTable.registerTempTable(cleanPredicate)
-      _sqlContext.cacheTable(cleanPredicate)
+      _spark.catalog.cacheTable(cleanPredicate)
       _vpTableSizes(predicate) = vpTable.count()
     }
   }
@@ -241,10 +250,10 @@ object DataSetGenerator {
         // corresponding VP tables
         if (!(relType == "SS" && pred1 == pred2)) {
           var sqlCommand = getExtVpSQLcommand(pred1, pred2, relType)
-          var extVpTable = _sqlContext.sql(sqlCommand)
+          var extVpTable = _spark.sql(sqlCommand)
           extVpTable.registerTempTable("extvp_table")
           // cache table to avoid recomputation of DF by storage to HDFS       
-          _sqlContext.cacheTable("extvp_table")
+          _spark.catalog.cacheTable("extvp_table")
           extVpTableSize = extVpTable.count()  
 
           // save ExtVP table in case if its size smaller than
@@ -270,7 +279,7 @@ object DataSetGenerator {
             StatisticWriter.incUnsavedNonEmptyTables()
           }
           
-          _sqlContext.uncacheTable("extvp_table")
+          _spark.catalog.uncacheTable("extvp_table")
           
         } else {
           extVpTableSize = _vpTableSizes(pred1)
@@ -300,20 +309,20 @@ object DataSetGenerator {
    */
   private def getRelatedPredicates(pred: String, relType: String)
                 : Array[String] = {  
-    var sqlRelPreds = ("select distinct pred "
+    var sqlRelPreds = ("select distinct p "
                         + "from triples t1 "
                         + "left semi join "+"prop" + predicates(pred) + " t2 "
                         + "on")
 
     if (relType == "SS"){
-      sqlRelPreds += "(t1.sub=t2.sub)"
+      sqlRelPreds += "(t1.s=t2.s)"
     } else if (relType == "OS"){
-      sqlRelPreds += "(t1.sub=t2.obj)"
+      sqlRelPreds += "(t1.s=t2.o)"
     } else if (relType == "SO"){
-      sqlRelPreds += "(t1.obj=t2.sub)"
+      sqlRelPreds += "(t1.p=t2.s)"
     }  
 
-    _sqlContext.sql(sqlRelPreds).map(t => t(0).toString()).collect()
+    _spark.sql(sqlRelPreds).map(t => t(0).toString()).collect()
   }
   
   /**
@@ -324,24 +333,24 @@ object DataSetGenerator {
   private def getExtVpSQLcommand(pred1: String, 
                                  pred2: String, 
                                  relType: String): String = {
-    var command = ("select t1.sub as sub, t1.obj as obj "
+    var command = ("select t1.s as s, t1.o as o "
                     + "from " + "prop" + predicates(pred1) + " t1 "
                     + "left semi join " + "prop" + predicates(pred2) + " t2 "
                     + "on ")
 
     if (relType == "SS"){
-      command += "(t1.sub=t2.sub)"
+      command += "(t1.s=t2.s)"
     } else if (relType == "OS"){
-      command += "(t1.obj=t2.sub)"
+      command += "(t1.o=t2.s)"
     } else if (relType == "SO"){
-      command += "(t1.sub=t2.obj)"
+      command += "(t1.s=t2.o)"
     }
     
     command
   }
 
   private def removeDirInHDFS(path: String) = {
-    val fs = FileSystem.get(_sc.hadoopConfiguration)
+    val fs = FileSystem.get(_spark.sparkContext.hadoopConfiguration)
 
     val outPutPath = new Path(path)
 
@@ -350,7 +359,7 @@ object DataSetGenerator {
   }
 
   private def createDirInHDFS(path: String) = {
-    val fs = FileSystem.get(_sc.hadoopConfiguration)    
+    val fs = FileSystem.get(_spark.sparkContext.hadoopConfiguration)    
     fs.mkdirs(new Path(path));
   }
 
