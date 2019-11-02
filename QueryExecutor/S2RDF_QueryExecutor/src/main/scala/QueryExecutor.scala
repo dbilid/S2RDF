@@ -240,14 +240,14 @@ object QueryExecutor {
         else
           table = _sqlContext.read.parquet(fileName)
         
-        if(tableStat.tName.contains("prop1")) {
+        if(tableStat.tName.contains("prop2")) {
             //var table2:org.apache.spark.sql.DataFrame = null;
             table.registerTempTable("tempwkt");
             
             _sqlContext.sql("SELECT * FROM tempwkt").show(10, false);
             var spatialDf = _sqlContext.sql(
               """
-                |SELECT s, ST_GeomFromWKT(o) as o
+                |SELECT s, ST_GeomFromWKT(replace(replace(o, '"', ''), '^^<http://www.opengis.net/ont/geosparql#wktLiteral>', '' )) as o
                 |FROM tempwkt
               """.stripMargin)
             //spatialDf.createOrReplaceTempView(tableStat.tName);
@@ -259,6 +259,8 @@ object QueryExecutor {
         }
         _sqlContext.cacheTable(tableStat.tName)
 
+        
+
         var start = System.currentTimeMillis;            
         var size = table.count();
         var time = System.currentTimeMillis - start;
@@ -266,7 +268,8 @@ object QueryExecutor {
 
         _cachedTables(fileName) = tableStat.tName;
       }
-    }   
+    }
+    //_sqlContext.sql("SELECT * FROM prop6__3__ where o='\"1001\"^^<http://www.w3.org/2001/XMLSchema#integer>'").show(10, false);   
   }
   
   /**
